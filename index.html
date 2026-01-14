@@ -10,9 +10,10 @@
         html, body { 
             margin: 0; 
             padding: 0; 
-            height: 550px; /* Hauteur max demandée */
+            height: 550px; 
             width: 100%; 
             overflow: hidden; 
+            background: #f8f9fa;
         }
 
         #map { 
@@ -21,11 +22,22 @@
             background: #f0f0f0; 
         }
 
+        /* SUPPRESSION DU POINTEUR DU POPUP */
+        .leaflet-popup-tip-container {
+            display: none !important;
+        }
+        
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 5px;
+        }
+
         /* STYLES DES ÉLÉMENTS */
         .info-panel { font-family: 'Segoe UI', Arial, sans-serif; min-width: 200px; }
         .score-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; color: white; font-weight: bold; font-size: 1.1em; }
         
-        /* CORRECTION LÉGENDE : Alignement vertical strict */
+        /* STYLE LÉGENDE */
         .legend { 
             background: white; 
             padding: 10px 14px; 
@@ -37,11 +49,10 @@
             color: #555;
         }
         
-        /* Chaque ligne de la légende est un bloc flex */
         .legend-item {
             display: flex;
             align-items: center;
-            margin: 6px 0; /* Espacement entre les lignes */
+            margin: 6px 0;
             white-space: nowrap;
         }
 
@@ -52,6 +63,7 @@
             opacity: 0.8; 
             border-radius: 3px; 
             display: inline-block;
+            flex-shrink: 0;
         }
 
         .stat-row { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 4px 0; font-size: 0.9em; }
@@ -113,7 +125,11 @@
         };
 
         const map = L.map('map').setView([45.76, 4.85], 11);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+        // AJOUT DU CRÉDIT DANS L'ATTRIBUTION
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> | &copy; <a href="https://carto.com/attributions">CARTO</a> | Lucas Bessonnat'
+        }).addTo(map);
 
         function getColor(d) {
             return d >= 3.0 ? '#1a9850' : d >= 2.5 ? '#91cf60' : d >= 2.0 ? '#d9ef8b' : d >= 1.5 ? '#fee08b' : d >= 1.0 ? '#fc8d59' : '#d73027';
@@ -131,12 +147,20 @@
             .then(res => res.json())
             .then(geojson => {
                 L.geoJson(geojson, {
-                    style: (feature) => ({
-                        fillColor: getColor(data2025[normalizeName(feature.properties.nom)]?.score || 0),
-                        weight: 1.5, opacity: 1, color: 'white', fillOpacity: 0.8
-                    }),
+                    style: (feature) => {
+                        const cityName = normalizeName(feature.properties.nom);
+                        const hasData = data2025[cityName]; 
+                        return {
+                            fillColor: hasData ? getColor(hasData.score) : 'transparent',
+                            weight: hasData ? 1.5 : 0, 
+                            opacity: hasData ? 1 : 0,
+                            color: 'white',
+                            fillOpacity: hasData ? 0.8 : 0
+                        };
+                    },
                     onEachFeature: (feature, layer) => {
-                        const d = data2025[normalizeName(feature.properties.nom)];
+                        const cityName = normalizeName(feature.properties.nom);
+                        const d = data2025[cityName];
                         if (d) {
                             layer.bindPopup(`
                                 <div class="info-panel">
@@ -147,13 +171,12 @@
                                     <div class="stat-row"><span>🚲 Infrastructures</span> <strong>${d.infra}</strong></div>
                                     <div class="stat-row"><span>🛡️ Sécurité</span> <strong>${d.secu}</strong></div>
                                     <div class="stat-row"><span>🅿️ Parking</span> <strong>${d.park}</strong></div>
-                                </div>`);
+                                </div>`, { offset: L.point(0, -5) });
                         }
                     }
                 }).addTo(map);
             });
 
-        /* LOGIQUE DE LA LÉGENDE REVISITÉE */
         const legend = L.control({position: 'bottomright'});
         legend.onAdd = function () {
             const div = L.DomUtil.create('div', 'legend'),
@@ -161,9 +184,7 @@
                   labels = ['< 1', '1 - 1.5', '1.5 - 2', '2 - 2.5', '2.5 - 3', '> 3'];
             
             div.innerHTML = '<strong style="display:block; margin-bottom:8px;">Vélo-Score</strong>';
-            
             for (let i = 0; i < grades.length; i++) {
-                // Utilisation d'une div wrap "legend-item" pour forcer le bloc vertical
                 div.innerHTML += `
                     <div class="legend-item">
                         <i style="background:${getColor(grades[i] + 0.1)}"></i>
