@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vélo-Score 2025</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        /* CONFIGURATION ANTI-SCROLL & RESPONSIVE */
+        html, body { 
+            margin: 0; 
+            padding: 0; 
+            height: 550px; /* Hauteur max demandée */
+            width: 100%; 
+            overflow: hidden; 
+        }
+
+        #map { 
+            height: 100%; 
+            width: 100%; 
+            background: #f0f0f0; 
+        }
+
+        /* STYLES DES ÉLÉMENTS */
+        .info-panel { font-family: 'Segoe UI', Arial, sans-serif; min-width: 200px; }
+        .score-badge { display: inline-block; padding: 3px 10px; border-radius: 4px; color: white; font-weight: bold; font-size: 1.1em; }
+        
+        /* CORRECTION LÉGENDE : Alignement vertical strict */
+        .legend { 
+            background: white; 
+            padding: 10px 14px; 
+            border-radius: 8px; 
+            box-shadow: 0 0 15px rgba(0,0,0,0.15); 
+            font-family: Arial, sans-serif;
+            font-size: 13px;
+            line-height: 18px;
+            color: #555;
+        }
+        
+        /* Chaque ligne de la légende est un bloc flex */
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 6px 0; /* Espacement entre les lignes */
+            white-space: nowrap;
+        }
+
+        .legend i { 
+            width: 18px; 
+            height: 18px; 
+            margin-right: 10px; 
+            opacity: 0.8; 
+            border-radius: 3px; 
+            display: inline-block;
+        }
+
+        .stat-row { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 4px 0; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const data2025 = {
+            "LYON": { score: 3.16, infra: 2.82, secu: 2.25, park: 4.2, ressenti: 3.72, lettre: "B" },
+            "VILLEURBANNE": { score: 2.58, infra: 2.26, secu: 1.83, park: 3.9, ressenti: 2.66, lettre: "C" },
+            "COUZON AU MONT D OR": { score: 2.51, infra: 2.12, secu: 2.66, park: 3.04, ressenti: 2.59, lettre: "C" },
+            "CHASSIEU": { score: 2.4, infra: 2.71, secu: 1.58, park: 2.3, ressenti: 2.68, lettre: "C" },
+            "SAINT GERMAIN AU MONT D OR": { score: 2.34, infra: 1.82, secu: 2.83, park: 2.26, ressenti: 2.95, lettre: "C" },
+            "NEUVILLE SUR SAONE": { score: 2.05, infra: 1.44, secu: 2.33, park: 2.76, ressenti: 2.28, lettre: "C" },
+            "ALBIGNY SUR SAONE": { score: 1.96, infra: 1.06, secu: 2.27, park: 3.71, ressenti: 1.73, lettre: "D" },
+            "DARDILLY": { score: 1.85, infra: 1.91, secu: 2.06, park: 1.57, ressenti: 1.81, lettre: "D" },
+            "CHAMPAGNE AU MONT D OR": { score: 1.8, infra: 1.82, secu: 1.85, park: 1.16, ressenti: 2.35, lettre: "D" },
+            "LA MULATIERE": { score: 1.74, infra: 1.91, secu: 1.67, park: 2.35, ressenti: 0.89, lettre: "D" },
+            "GENAY": { score: 1.69, infra: 1.97, secu: 1.47, park: 2.2, ressenti: 0.82, lettre: "D" },
+            "CHARBONNIERES LES BAINS": { score: 1.63, infra: 1.87, secu: 1.68, park: 1.55, ressenti: 1.16, lettre: "D" },
+            "MEYZIEU": { score: 1.61, infra: 2.13, secu: 0.67, park: 1.7, ressenti: 1.41, lettre: "D" },
+            "BRON": { score: 1.59, infra: 1.68, secu: 0.93, park: 2.23, ressenti: 1.45, lettre: "D" },
+            "VAULX EN VELIN": { score: 1.57, infra: 2.0, secu: 0.41, park: 2.6, ressenti: 0.81, lettre: "D" },
+            "SATHONAY CAMP": { score: 1.55, infra: 0.9, secu: 1.42, park: 2.52, ressenti: 2.02, lettre: "D" },
+            "ECULLY": { score: 1.5, infra: 1.28, secu: 2.08, park: 1.54, ressenti: 1.34, lettre: "D" },
+            "LA TOUR DE SALVAGNY": { score: 1.48, infra: 1.21, secu: 1.51, park: 1.17, ressenti: 2.32, lettre: "D" },
+            "SAINT GENIS LAVAL": { score: 1.48, infra: 1.13, secu: 1.01, park: 2.62, ressenti: 1.52, lettre: "D" },
+            "VENISSIEUX": { score: 1.42, infra: 2.07, secu: 0.45, park: 1.45, ressenti: 1.07, lettre: "D" },
+            "SAINT FONS": { score: 1.37, infra: 1.68, secu: 1.42, park: 0.78, ressenti: 1.27, lettre: "D" },
+            "OULLINS PIERRE BENITE": { score: 1.35, infra: 1.19, secu: 1.17, park: 2.5, ressenti: 0.71, lettre: "D" },
+            "CRAPONNE": { score: 1.34, infra: 0.86, secu: 1.83, park: 1.94, ressenti: 1.2, lettre: "D" },
+            "SAINTE FOY LES LYON": { score: 1.34, infra: 1.39, secu: 1.1, park: 1.21, ressenti: 1.59, lettre: "D" },
+            "DECINES CHARPIEU": { score: 1.29, infra: 1.64, secu: 0.53, park: 1.74, ressenti: 0.92, lettre: "D" },
+            "RILLIEUX LA PAPE": { score: 1.27, infra: 1.51, secu: 0.62, park: 1.73, ressenti: 0.98, lettre: "D" },
+            "FEYZIN": { score: 1.26, infra: 1.27, secu: 0.94, park: 1.07, ressenti: 1.77, lettre: "D" },
+            "SAINT GENIS LES OLLIERES": { score: 1.24, infra: 0.75, secu: 2.01, park: 1.77, ressenti: 0.92, lettre: "D" },
+            "FONTAINES SUR SAONE": { score: 1.23, infra: 0.98, secu: 0.99, park: 1.73, ressenti: 1.48, lettre: "D" },
+            "CALUIRE ET CUIRE": { score: 1.21, infra: 1.48, secu: 0.53, park: 1.82, ressenti: 0.73, lettre: "D" },
+            "MARCY L ETOILE": { score: 1.21, infra: 1.44, secu: 0.75, park: 1.36, ressenti: 1.03, lettre: "D" },
+            "CAILLOUX SUR FONTAINES": { score: 1.16, infra: 0.41, secu: 0.8, park: 3.41, ressenti: 0.78, lettre: "D" },
+            "SAINT CYR AU MONT D OR": { score: 1.15, infra: 0.49, secu: 1.83, park: 1.91, ressenti: 0.99, lettre: "D" },
+            "TASSIN LA DEMI LUNE": { score: 1.13, infra: 1.21, secu: 0.58, park: 1.6, ressenti: 1.03, lettre: "D" },
+            "IRIGNY": { score: 1.12, infra: 1.09, secu: 1.05, park: 1.36, ressenti: 1.01, lettre: "D" },
+            "GIVORS": { score: 1.11, infra: 0.95, secu: 1.56, park: 0.7, ressenti: 1.4, lettre: "D" },
+            "MIONS": { score: 1.09, infra: 0.98, secu: 0.94, park: 1.34, ressenti: 1.23, lettre: "D" },
+            "CORBAS": { score: 1.07, infra: 0.9, secu: 0.94, park: 1.13, ressenti: 1.46, lettre: "D" },
+            "COLLONGES AU MONT D OR": { score: 1.05, infra: 0.71, secu: 1.1, park: 1.44, ressenti: 1.27, lettre: "D" },
+            "JONAGE": { score: 0.96, infra: 1.09, secu: 0.86, park: 0.63, ressenti: 1.14, lettre: "E" },
+            "CHARLY": { score: 0.95, infra: 0.92, secu: 0.74, park: 1.42, ressenti: 0.78, lettre: "E" },
+            "SAINT PRIEST": { score: 0.94, infra: 0.92, secu: 0.5, park: 1.5, ressenti: 0.88, lettre: "E" },
+            "LIMONEST": { score: 0.93, infra: 1.0, secu: 1.3, park: 0.64, ressenti: 0.72, lettre: "E" },
+            "SATHONAY VILLAGE": { score: 0.9, infra: 0.33, secu: 1.35, park: 2.01, ressenti: 0.49, lettre: "E" },
+            "FRANCHEVILLE": { score: 0.86, infra: 0.89, secu: 0.52, park: 1.21, ressenti: 0.81, lettre: "E" },
+            "SAINT DIDIER AU MONT D OR": { score: 0.73, infra: 0.34, secu: 0.77, park: 1.01, ressenti: 1.19, lettre: "E" }
+        };
+
+        const map = L.map('map').setView([45.76, 4.85], 11);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+        function getColor(d) {
+            return d >= 3.0 ? '#1a9850' : d >= 2.5 ? '#91cf60' : d >= 2.0 ? '#d9ef8b' : d >= 1.5 ? '#fee08b' : d >= 1.0 ? '#fc8d59' : '#d73027';
+        }
+
+        function normalizeName(name) {
+            if (!name) return "";
+            let n = name.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/['\-]/g, " ").trim();
+            if (n.includes("LYON") && (n.includes("ARRONDISSEMENT") || n.match(/\d/))) return "LYON";
+            if (n === "OULLINS" || n === "PIERRE BENITE") return "OULLINS PIERRE BENITE";
+            return n;
+        }
+
+        fetch("https://data.grandlyon.com/geoserver/metropole-de-lyon/ows?SERVICE=WFS&VERSION=2.0.0&request=GetFeature&typename=metropole-de-lyon:adr_voie_lieu.adrcomgl_2024&outputFormat=application/json&SRSNAME=EPSG:4326")
+            .then(res => res.json())
+            .then(geojson => {
+                L.geoJson(geojson, {
+                    style: (feature) => ({
+                        fillColor: getColor(data2025[normalizeName(feature.properties.nom)]?.score || 0),
+                        weight: 1.5, opacity: 1, color: 'white', fillOpacity: 0.8
+                    }),
+                    onEachFeature: (feature, layer) => {
+                        const d = data2025[normalizeName(feature.properties.nom)];
+                        if (d) {
+                            layer.bindPopup(`
+                                <div class="info-panel">
+                                    <h3 style="margin:0 0 8px 0;">${feature.properties.nom}</h3>
+                                    <div style="text-align:center; margin-bottom:10px;">
+                                        <span class="score-badge" style="background:${getColor(d.score)}">${d.score} / 5</span>
+                                    </div>
+                                    <div class="stat-row"><span>🚲 Infrastructures</span> <strong>${d.infra}</strong></div>
+                                    <div class="stat-row"><span>🛡️ Sécurité</span> <strong>${d.secu}</strong></div>
+                                    <div class="stat-row"><span>🅿️ Parking</span> <strong>${d.park}</strong></div>
+                                </div>`);
+                        }
+                    }
+                }).addTo(map);
+            });
+
+        /* LOGIQUE DE LA LÉGENDE REVISITÉE */
+        const legend = L.control({position: 'bottomright'});
+        legend.onAdd = function () {
+            const div = L.DomUtil.create('div', 'legend'),
+                  grades = [0, 1, 1.5, 2, 2.5, 3],
+                  labels = ['< 1', '1 - 1.5', '1.5 - 2', '2 - 2.5', '2.5 - 3', '> 3'];
+            
+            div.innerHTML = '<strong style="display:block; margin-bottom:8px;">Vélo-Score</strong>';
+            
+            for (let i = 0; i < grades.length; i++) {
+                // Utilisation d'une div wrap "legend-item" pour forcer le bloc vertical
+                div.innerHTML += `
+                    <div class="legend-item">
+                        <i style="background:${getColor(grades[i] + 0.1)}"></i>
+                        <span>${labels[i]}</span>
+                    </div>`;
+            }
+            return div;
+        };
+        legend.addTo(map);
+    </script>
+</body>
+</html>
